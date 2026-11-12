@@ -8,6 +8,7 @@ import com.google.gson.JsonPrimitive;
 import io.papermc.paper.world.PaperWorldLoader;
 import live.minehub.polarpaper.core.NoSaveLevelCreator;
 import live.minehub.polarpaper.core.config.Config;
+import live.minehub.polarpaper.core.util.SpigotConfigSaves;
 import live.minehub.polarpaper.core.util.TaskFutures;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.RegistryAccess;
@@ -179,7 +180,7 @@ public class NoSaveLevelCreatorImpl implements NoSaveLevelCreator {
         BiomeProvider finalBiomeProvider = biomeProvider;
         PaperWorldLoader.LoadedWorldData finalLoadedWorldData = loadedWorldData;
         Supplier<World> initSupplier = () -> {
-            ServerLevel serverLevel = new NoSaveLevel(
+            ServerLevel serverLevel = SpigotConfigSaves.skip(() -> new NoSaveLevel(
                     craftServer.getServer(),
                     Util.backgroundExecutor(),
                     craftServer.getServer().storageSource,
@@ -196,7 +197,7 @@ public class NoSaveLevelCreatorImpl implements NoSaveLevelCreator {
                     finalBiomeProvider,
                     savedDataStorage,
                     finalLoadedWorldData
-            );
+            ));
 
             serverLevel.dimensionType().defaultClock().ifPresent(clock -> {
                 Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {

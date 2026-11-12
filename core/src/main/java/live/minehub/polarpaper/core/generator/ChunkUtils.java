@@ -85,6 +85,10 @@ public class ChunkUtils {
     }
 
     public static void insertChunk(ServerLevel serverLevel, NoUnloadLevelChunk newLevelChunk) {
+        insertChunk(serverLevel, newLevelChunk, true);
+    }
+
+    private static void insertChunk(ServerLevel serverLevel, NoUnloadLevelChunk newLevelChunk, boolean primeHeightmaps) {
         newLevelChunk.setLightCorrect(true);
         newLevelChunk.tryMarkSaved();
 
@@ -124,11 +128,13 @@ public class ChunkUtils {
             }
         }
 
-        CompletableFuture.runAsync(() -> Heightmap.primeHeightmaps(newLevelChunk, ChunkStatus.FULL.heightmapsAfter()))
-                .exceptionally(e -> {
-                    LOGGER.error("Heightmaps failed to prime", e);
-                    return null;
-                });
+        if (primeHeightmaps) {
+            CompletableFuture.runAsync(() -> Heightmap.primeHeightmaps(newLevelChunk, ChunkStatus.FULL.heightmapsAfter()))
+                    .exceptionally(e -> {
+                        LOGGER.error("Heightmaps failed to prime", e);
+                        return null;
+                    });
+        }
 
         newLevelChunk.setFullStatus(() -> FullChunkStatus.ENTITY_TICKING);
         newLevelChunk.runPostLoad();
@@ -218,28 +224,35 @@ public class ChunkUtils {
 
     public static CompletableFuture<Void> insertEmptyChunks(Plugin plugin, ServerLevel level) {
         int paddedViewDist = FeatureHooks.getViewDistance(level) + 2;
+        ChunkHolderManager chunkHolderManager = level.moonrise$getChunkTaskScheduler().chunkHolderManager;
 
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-        for (int x = -paddedViewDist; x <= paddedViewDist; x++) {
-            for (int z = -paddedViewDist; z <= paddedViewDist; z++) {
-                int finalX = x;
-                int finalZ = z;
-                CompletableFuture<Void> future = TaskFutures.runRegion(plugin, level.getWorld(), x, z, () -> {
-                    // Skip chunks already inserted by the loader
-                    NewChunkHolder holder = level.moonrise$getChunkTaskScheduler().chunkHolderManager.getChunkHolder(finalX, finalZ);
-                    if (holder != null && holder.getCurrentChunk() instanceof NoUnloadLevelChunk) return null;
-
-                    NoUnloadLevelChunk emptyChunk = createEmptyChunk(level, finalX, finalZ);
-                    insertChunk(level, emptyChunk);
-                    return null;
-                });
-
-                futures.add(future);
+        // Creating the chunks is the expensive part, only the insert has to happen on the region thread
+        return TaskFutures.runAsync(plugin, () -> {
+            List<NoUnloadLevelChunk> emptyChunks = new ArrayList<>();
+            for (int x = -paddedViewDist; x <= paddedViewDist; x++) {
+                for (int z = -paddedViewDist; z <= paddedViewDist; z++) {
+                    if (isInserted(chunkHolderManager, x, z)) continue;
+                    emptyChunks.add(createEmptyChunk(level, x, z));
+                }
             }
-        }
+            return emptyChunks;
+        }).thenCompose(emptyChunks -> {
+            List<CompletableFuture<Void>> futures = new ArrayList<>(emptyChunks.size());
+            for (NoUnloadLevelChunk emptyChunk : emptyChunks) {
+                futures.add(TaskFutures.runRegion(plugin, level.getWorld(), emptyChunk.locX, emptyChunk.locZ, () -> {
+                    if (isInserted(chunkHolderManager, emptyChunk.locX, emptyChunk.locZ)) return null;
+                    insertChunk(level, emptyChunk, false);
+                    return null;
+                }));
+            }
+            return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        });
+    }
 
-        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+    // Skip chunks already inserted by the loader
+    private static boolean isInserted(ChunkHolderManager chunkHolderManager, int x, int z) {
+        NewChunkHolder holder = chunkHolderManager.getChunkHolder(x, z);
+        return holder != null && holder.getCurrentChunk() instanceof NoUnloadLevelChunk;
     }
 
     private static NoUnloadLevelChunk createEmptyChunk(ServerLevel level, int x, int z) {
@@ -249,6 +262,7 @@ public class ChunkUtils {
         emptyChunk.starlight$setBlockEmptinessMap(emptySections.clone());
         emptyChunk.starlight$setSkyEmptinessMap(emptySections);
         emptyChunk.setLightCorrect(true);
+        Heightmap.primeHeightmaps(emptyChunk, ChunkStatus.FULL.heightmapsAfter());
         return emptyChunk;
     }
 

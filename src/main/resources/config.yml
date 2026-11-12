@@ -2,6 +2,9 @@
 # Makes creating worlds a lot cheaper. Polar worlds will only use paper-world-defaults.yml. Requires a restart
 sharePaperWorldConfig: false
 
+# Don't write spigot.yml to disk every time a polar world is created
+skipSpigotConfigSave: false
+
 # Config for polar worlds
 default:
   autosaveIntervalTicks: -1 # -1 to disable

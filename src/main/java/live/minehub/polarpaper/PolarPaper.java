@@ -9,6 +9,7 @@ import live.minehub.polarpaper.core.generator.PolarGenerator;
 import live.minehub.polarpaper.core.source.FilePolarSource;
 import live.minehub.polarpaper.core.util.FoliaUtil;
 import live.minehub.polarpaper.core.util.SharedPaperWorldConfig;
+import live.minehub.polarpaper.core.util.SpigotConfigSaves;
 import live.minehub.polarpaper.core.util.ShutdownExecutor;
 import live.minehub.polarpaper.util.Format;
 import live.minehub.polarpaper.util.WorldKey;
@@ -51,6 +52,8 @@ public final class PolarPaper extends JavaPlugin {
             });
             if (installed) getLogger().info("Polar worlds will share a single paper world config");
         }
+
+        SpigotConfigSaves.setEnabled(getConfig().getBoolean("skipSpigotConfigSave", false));
 
         try {
             loadStartupWorlds();

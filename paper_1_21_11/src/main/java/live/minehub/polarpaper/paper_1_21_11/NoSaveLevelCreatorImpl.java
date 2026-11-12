@@ -10,6 +10,7 @@ import com.mojang.serialization.Lifecycle;
 import io.papermc.paper.world.PaperWorldLoader;
 import live.minehub.polarpaper.core.NoSaveLevelCreator;
 import live.minehub.polarpaper.core.config.Config;
+import live.minehub.polarpaper.core.util.SpigotConfigSaves;
 import live.minehub.polarpaper.core.util.TaskFutures;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -225,7 +226,7 @@ public class NoSaveLevelCreatorImpl implements NoSaveLevelCreator {
         ChunkGenerator finalChunkGenerator = chunkGenerator;
         BiomeProvider finalBiomeProvider = biomeProvider;
         Supplier<World> initSupplier = () -> {
-            ServerLevel serverLevel = new NoSaveLevel(
+            ServerLevel serverLevel = SpigotConfigSaves.skip(() -> new NoSaveLevel(
                     craftServer.getServer(),
                     craftServer.getServer().executor,
                     levelStorageAccess,
@@ -239,7 +240,7 @@ public class NoSaveLevelCreatorImpl implements NoSaveLevelCreator {
                     craftServer.getServer().overworld().getRandomSequences(),
                     creator.environment(),
                     finalChunkGenerator, finalBiomeProvider
-            );
+            ));
 
             serverLevel.setDayTime(time);
 
